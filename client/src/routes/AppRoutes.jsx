@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import LandingPage from "../pages/LandingPage";
 import LoginPage from "../pages/LoginPage";
 import SignupPage from "../pages/SignupPage";
+import OrganizationDashboard from "../pages/OrganizationDashboard";
+import ProtectedRoute from "../components/ProtectedRoute";
 import EmployeeLayout from "../components/employee/EmployeeLayout";
 import DashboardHome from "../pages/employee/DashboardHome";
 import Leads from "../pages/employee/Leads";
@@ -19,6 +21,12 @@ function AppRoutes() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/organization/dashboard" element={
+            <ProtectedRoute>
+              <OrganizationDashboard />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/employee" element={<EmployeeLayout />}>
           <Route index element={<DashboardHome />} />
           <Route path="leads" element={<Leads />} />
