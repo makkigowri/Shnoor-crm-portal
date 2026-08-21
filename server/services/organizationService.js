@@ -1,6 +1,14 @@
+const crypto = require("crypto");
+
 const pool = require("../config/db");
 
+
+// ============================================================
+// ORGANIZATION DASHBOARD
+// ============================================================
+
 const getOrganizationDashboard = async (organizationId) => {
+
   // Total employees
   const totalEmployeesResult = await pool.query(
     `
@@ -11,6 +19,7 @@ const getOrganizationDashboard = async (organizationId) => {
     `,
     [organizationId]
   );
+
 
   // Active employees
   const activeEmployeesResult = await pool.query(
@@ -24,6 +33,7 @@ const getOrganizationDashboard = async (organizationId) => {
     [organizationId]
   );
 
+
   // Inactive employees
   const inactiveEmployeesResult = await pool.query(
     `
@@ -36,6 +46,7 @@ const getOrganizationDashboard = async (organizationId) => {
     [organizationId]
   );
 
+
   // Pending invitations
   const pendingInvitationsResult = await pool.query(
     `
@@ -43,20 +54,363 @@ const getOrganizationDashboard = async (organizationId) => {
     FROM invitations
     WHERE organization_id = $1
       AND status = 'PENDING'
+      AND expires_at > CURRENT_TIMESTAMP
     `,
     [organizationId]
   );
 
+
   return {
-    totalEmployees: Number(totalEmployeesResult.rows[0].count),
-    activeEmployees: Number(activeEmployeesResult.rows[0].count),
-    inactiveEmployees: Number(inactiveEmployeesResult.rows[0].count),
+    totalEmployees: Number(
+      totalEmployeesResult.rows[0].count
+    ),
+
+    activeEmployees: Number(
+      activeEmployeesResult.rows[0].count
+    ),
+
+    inactiveEmployees: Number(
+      inactiveEmployeesResult.rows[0].count
+    ),
+
     pendingInvitations: Number(
       pendingInvitationsResult.rows[0].count
     ),
   };
 };
 
+
+// ============================================================
+// ORGANIZATION EMPLOYEES
+// ============================================================
+
+const getOrganizationEmployees = async (organizationId) => {
+
+  const result = await pool.query(
+    `
+    SELECT
+      id,
+      name,
+      email,
+      role,
+      status,
+      created_at
+    FROM users
+    WHERE organization_id = $1
+      AND role != 'ORG_ADMIN'
+    ORDER BY created_at DESC
+    `,
+    [organizationId]
+  );
+
+  return result.rows;
+};
+
+
+// ============================================================
+// CREATE INVITATION
+// ============================================================
+
+const createInvitation = async ({
+  organizationId,
+  invitedBy,
+  email,
+  role,
+}) => {
+
+  const normalizedEmail = email
+    .trim()
+    .toLowerCase();
+
+
+  const allowedRoles = [
+    "SALES_MANAGER",
+    "SALES_EXECUTIVE",
+    "SUPPORT_AGENT",
+  ];
+
+
+  if (!allowedRoles.includes(role)) {
+    throw new Error("Invalid employee role");
+  }
+
+
+  // ----------------------------------------------------------
+  // Check if employee already exists
+  // ----------------------------------------------------------
+
+  const existingUserResult = await pool.query(
+    `
+    SELECT id
+    FROM users
+    WHERE LOWER(email) = $1
+    `,
+    [normalizedEmail]
+  );
+
+
+  if (existingUserResult.rows.length > 0) {
+    throw new Error("Employee already exists");
+  }
+
+
+  // ----------------------------------------------------------
+  // Check existing pending invitation
+  // ----------------------------------------------------------
+
+  const existingInvitationResult = await pool.query(
+    `
+    SELECT id
+    FROM invitations
+    WHERE organization_id = $1
+      AND LOWER(email) = $2
+      AND status = 'PENDING'
+      AND expires_at > CURRENT_TIMESTAMP
+    `,
+    [
+      organizationId,
+      normalizedEmail,
+    ]
+  );
+
+
+  if (existingInvitationResult.rows.length > 0) {
+    throw new Error(
+      "A pending invitation already exists"
+    );
+  }
+
+
+  // ----------------------------------------------------------
+  // Generate invitation token
+  // ----------------------------------------------------------
+
+  const rawToken = crypto.randomBytes(32).toString("hex");
+
+  const tokenHash = crypto
+    .createHash("sha256")
+    .update(rawToken)
+    .digest("hex");
+
+
+  // Invitation valid for 7 days
+  const expiresAt = new Date(
+    Date.now() + 7 * 24 * 60 * 60 * 1000
+  );
+
+
+  // ----------------------------------------------------------
+  // Insert invitation
+  // ----------------------------------------------------------
+
+  const result = await pool.query(
+    `
+    INSERT INTO invitations (
+      organization_id,
+      email,
+      role,
+      token_hash,
+      expires_at,
+      status,
+      invited_by
+    )
+    VALUES (
+      $1,
+      $2,
+      $3,
+      $4,
+      $5,
+      'PENDING',
+      $6
+    )
+    RETURNING
+      id,
+      organization_id,
+      email,
+      role,
+      expires_at,
+      status,
+      invited_by,
+      created_at
+    `,
+    [
+      organizationId,
+      normalizedEmail,
+      role,
+      tokenHash,
+      expiresAt,
+      invitedBy,
+    ]
+  );
+
+
+  const invitation = result.rows[0];
+
+
+  return {
+    ...invitation,
+
+    // Temporary for development/testing.
+    // Later this will be sent through email.
+    invitationToken: rawToken,
+  };
+};
+
+
+// ============================================================
+// GET ORGANIZATION INVITATIONS
+// ============================================================
+
+const getOrganizationInvitations = async (organizationId) => {
+
+  const result = await pool.query(
+    `
+    SELECT
+      i.id,
+      i.email,
+      i.role,
+      i.status,
+      i.expires_at,
+      i.accepted_at,
+      i.created_at,
+      u.name AS invited_by_name
+    FROM invitations i
+    LEFT JOIN users u
+      ON u.id = i.invited_by
+    WHERE i.organization_id = $1
+    ORDER BY i.created_at DESC
+    `,
+    [organizationId]
+  );
+
+
+  return result.rows;
+};
+
+// ============================================================
+// ORGANIZATION SETTINGS
+// ============================================================
+
+const getOrganizationSettings = async (organizationId) => {
+  const result = await pool.query(
+    `
+    SELECT
+      id,
+      name,
+      status,
+      created_at,
+      updated_at
+    FROM organizations
+    WHERE id = $1
+    `,
+    [organizationId]
+  );
+
+  if (result.rows.length === 0) {
+    throw new Error("Organization not found");
+  }
+
+  return result.rows[0];
+};
+
+
+const updateOrganizationSettings = async (
+  organizationId,
+  name
+) => {
+  const result = await pool.query(
+    `
+    UPDATE organizations
+    SET
+      name = $1,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = $2
+    RETURNING
+      id,
+      name,
+      status,
+      created_at,
+      updated_at
+    `,
+    [name, organizationId]
+  );
+
+  if (result.rows.length === 0) {
+    throw new Error("Organization not found");
+  }
+
+  return result.rows[0];
+};
+
+
+// ============================================================
+// ORGANIZATION PROFILE
+// ============================================================
+
+const getOrganizationProfile = async (userId) => {
+  const result = await pool.query(
+    `
+    SELECT
+      id,
+      organization_id,
+      name,
+      email,
+      role,
+      status,
+      created_at,
+      last_login_at
+    FROM users
+    WHERE id = $1
+    `,
+    [userId]
+  );
+
+  if (result.rows.length === 0) {
+    throw new Error("User not found");
+  }
+
+  return result.rows[0];
+};
+
+
+const updateOrganizationProfile = async (
+  userId,
+  name
+) => {
+  const result = await pool.query(
+    `
+    UPDATE users
+    SET
+      name = $1,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = $2
+    RETURNING
+      id,
+      organization_id,
+      name,
+      email,
+      role,
+      status,
+      created_at,
+      last_login_at
+    `,
+    [name, userId]
+  );
+
+  if (result.rows.length === 0) {
+    throw new Error("User not found");
+  }
+
+  return result.rows[0];
+};
+
 module.exports = {
   getOrganizationDashboard,
+  getOrganizationEmployees,
+  createInvitation,
+  getOrganizationInvitations,
+  getOrganizationSettings,
+  updateOrganizationSettings,
+  getOrganizationProfile,
+  updateOrganizationProfile,
 };

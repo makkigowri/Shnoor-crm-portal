@@ -43,7 +43,7 @@ function LoginPage() {
       console.log("Authenticated user:", result.user);
       console.log("JWT:", result);
 
-      navigate("/organization/dashboard");
+      navigate("/organization");
     } catch (error) {
       const message =
         error.response?.data?.message ||

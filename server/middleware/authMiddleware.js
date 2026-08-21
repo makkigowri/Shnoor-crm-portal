@@ -18,6 +18,8 @@ const authenticate = (req, res, next) => {
       process.env.JWT_SECRET
     );
 
+    //console.log("JWT decoded user:", decoded);
+
     req.user = decoded;
 
     next();

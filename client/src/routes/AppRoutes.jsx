@@ -2,7 +2,13 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import LandingPage from "../pages/LandingPage";
 import LoginPage from "../pages/LoginPage";
 import SignupPage from "../pages/SignupPage";
-import OrganizationDashboard from "../pages/OrganizationDashboard";
+import OrganizationLayout from "../components/organization/OrganizationLayout";
+import OrganizationDashboard from "../pages/organization/OrganizationDashboard";
+import EmployeesPage from "../pages/organization/EmployeesPage";
+import InvitationsPage from "../pages/organization/InvitationsPage";
+import OrganizationSettingsPage from "../pages/organization/OrganizationSettingsPage";
+import OrganizationProfilePage from "../pages/organization/OrganizationProfilePage";
+
 import ProtectedRoute from "../components/ProtectedRoute";
 import EmployeeLayout from "../components/employee/EmployeeLayout";
 import DashboardHome from "../pages/employee/DashboardHome";
@@ -21,12 +27,18 @@ function AppRoutes() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
-        <Route path="/organization/dashboard" element={
+        <Route path="/organization" element={
             <ProtectedRoute>
-              <OrganizationDashboard />
+              <OrganizationLayout />
             </ProtectedRoute>
-          }
-        />
+          }>
+            <Route index element={<OrganizationDashboard />} />
+            <Route path="employees" element={<EmployeesPage />} />
+            <Route path="invitations" element={<InvitationsPage />} />
+            <Route path="settings" element={<OrganizationSettingsPage />} />
+            <Route path="profile" element={<OrganizationProfilePage />} />
+        </Route>
+
         <Route path="/employee" element={<EmployeeLayout />}>
           <Route index element={<DashboardHome />} />
           <Route path="leads" element={<Leads />} />
