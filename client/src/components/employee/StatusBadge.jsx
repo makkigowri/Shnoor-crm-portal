@@ -18,7 +18,6 @@ const STYLES = {
   Medium: "bg-amber-50 text-amber-700 border-amber-200",
   High: "bg-red-50 text-red-700 border-red-200",
 };
-
 function StatusBadge({ value }) {
   const style = STYLES[value] || "bg-gray-100 text-gray-600 border-gray-200";
   return (
@@ -27,5 +26,4 @@ function StatusBadge({ value }) {
     </span>
   );
 }
-
 export default StatusBadge;

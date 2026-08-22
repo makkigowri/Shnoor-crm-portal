@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Contact } from "lucide-react";
 import ListToolbar from "../../components/employee/ListToolbar";
 import FilterSelect from "../../components/employee/FilterSelect";
@@ -7,19 +7,41 @@ import RowActions from "../../components/employee/RowActions";
 import Pagination from "../../components/employee/Pagination";
 import EmptyState from "../../components/employee/EmptyState";
 import Modal from "../../components/employee/Modal";
-import { customers as initialCustomers, CUSTOMER_STATUSES } from "../../mock/customers";
-
+import { CUSTOMER_STATUSES } from "../../mock/customers";
+import { getCustomers, createCustomer, updateCustomer, deleteCustomer } from "../../services/employeeService";
 const PAGE_SIZE = 6;
-
 function Customers() {
-  const [customers, setCustomers] = useState(initialCustomers);
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [activeCustomer, setActiveCustomer] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-
+  useEffect(() => {
+    let isMounted = true;
+    async function loadCustomers() {
+      try {
+        setLoading(true);
+        setError("");
+        const response = await getCustomers();
+        if (!isMounted) return;
+        setCustomers(response.data);
+      } catch (err) {
+        if (!isMounted) return;
+        setError(err.friendlyMessage || "Unable to load customers.");
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+    loadCustomers();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
   const filtered = useMemo(() => {
     return customers.filter((c) => {
       const matchesSearch =
@@ -30,21 +52,17 @@ function Customers() {
       return matchesSearch && matchesStatus;
     });
   }, [customers, search, status]);
-
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
   function openAddModal() {
     setActiveCustomer(null);
     setModalOpen(true);
   }
-
   function openEditModal(customer) {
     setActiveCustomer(customer);
     setModalOpen(true);
   }
-
-  function handleSave(e) {
+  async function handleSave(e) {
     e.preventDefault();
     const form = new FormData(e.target);
     const payload = {
@@ -55,22 +73,37 @@ function Customers() {
       status: form.get("status"),
       industry: form.get("industry"),
       totalSpend: Number(form.get("totalSpend")) || 0,
-      since: activeCustomer?.since || new Date().toISOString().slice(0, 10),
     };
-
-    if (activeCustomer) {
-      setCustomers((prev) => prev.map((c) => (c.id === activeCustomer.id ? { ...c, ...payload } : c)));
-    } else {
-      setCustomers((prev) => [{ id: `CU-${Math.floor(2000 + Math.random() * 9000)}`, ...payload }, ...prev]);
+    setSaving(true);
+    setError("");
+    try {
+      if (activeCustomer) {
+        const response = await updateCustomer(activeCustomer.id, payload);
+        setCustomers((prev) => prev.map((c) => (c.id === activeCustomer.id ? response.data : c)));
+      } else {
+        const response = await createCustomer(payload);
+        setCustomers((prev) => [response.data, ...prev]);
+      }
+      setModalOpen(false);
+    } catch (err) {
+      setError(err.friendlyMessage || "Unable to save customer.");
+    } finally {
+      setSaving(false);
     }
-    setModalOpen(false);
   }
-
-  function confirmDelete() {
-    setCustomers((prev) => prev.filter((c) => c.id !== deleteTarget.id));
-    setDeleteTarget(null);
+  async function confirmDelete() {
+    setSaving(true);
+    setError("");
+    try {
+      await deleteCustomer(deleteTarget.id);
+      setCustomers((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      setError(err.friendlyMessage || "Unable to delete customer.");
+    } finally {
+      setSaving(false);
+    }
   }
-
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
       <ListToolbar
@@ -83,8 +116,14 @@ function Customers() {
           <FilterSelect value={status} onChange={(v) => { setStatus(v); setPage(1); }} options={CUSTOMER_STATUSES} allLabel="All Statuses" />
         }
       />
-
-      {pageItems.length === 0 ? (
+      {error && (
+        <div className="mx-6 mt-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          {error}
+        </div>
+      )}
+      {loading ? (
+        <div className="p-6 text-sm text-gray-500">Loading customers...</div>
+      ) : pageItems.length === 0 ? (
         <EmptyState
           icon={Contact}
           title="No customers found"
@@ -131,9 +170,7 @@ function Customers() {
           </table>
         </div>
       )}
-
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} pageSize={PAGE_SIZE} />
-
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -143,8 +180,8 @@ function Customers() {
             <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-100">
               Cancel
             </button>
-            <button type="submit" form="customer-form" className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
-              {activeCustomer ? "Save Changes" : "Add Customer"}
+            <button type="submit" form="customer-form" disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-60">
+              {saving ? "Saving..." : activeCustomer ? "Save Changes" : "Add Customer"}
             </button>
           </>
         }
@@ -188,7 +225,6 @@ function Customers() {
           </div>
         </form>
       </Modal>
-
       <Modal
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
@@ -198,8 +234,8 @@ function Customers() {
             <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-100">
               Cancel
             </button>
-            <button onClick={confirmDelete} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700">
-              Delete
+            <button onClick={confirmDelete} disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-60">
+              {saving ? "Deleting..." : "Delete"}
             </button>
           </>
         }
@@ -211,5 +247,4 @@ function Customers() {
     </div>
   );
 }
-
 export default Customers;

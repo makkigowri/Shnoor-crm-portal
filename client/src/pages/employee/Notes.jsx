@@ -1,43 +1,77 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StickyNote, Plus } from "lucide-react";
 import ListToolbar from "../../components/employee/ListToolbar";
 import EmptyState from "../../components/employee/EmptyState";
 import RowActions from "../../components/employee/RowActions";
 import Modal from "../../components/employee/Modal";
-import { notes as initialNotes } from "../../mock/notes";
-
+import { getNotes, createNote, deleteNote } from "../../services/employeeService";
 function Notes() {
-  const [notes, setNotes] = useState(initialNotes);
+  const [notes, setNotes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
-
+  useEffect(() => {
+    let isMounted = true;
+    async function loadNotes() {
+      try {
+        setLoading(true);
+        setError("");
+        const response = await getNotes();
+        if (!isMounted) return;
+        setNotes(response.data);
+      } catch (err) {
+        if (!isMounted) return;
+        setError(err.friendlyMessage || "Unable to load notes.");
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+    loadNotes();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
   const filtered = useMemo(() => {
     return notes.filter(
-      (n) => n.content.toLowerCase().includes(search.toLowerCase()) || n.relatedTo.toLowerCase().includes(search.toLowerCase())
+      (n) => n.content.toLowerCase().includes(search.toLowerCase()) || (n.relatedTo || "").toLowerCase().includes(search.toLowerCase())
     );
   }, [notes, search]);
-
-  function handleSave(e) {
+  async function handleSave(e) {
     e.preventDefault();
     const form = new FormData(e.target);
     const payload = {
-      id: `NT-${Math.floor(6000 + Math.random() * 9000)}`,
       relatedTo: form.get("relatedTo"),
       relatedType: form.get("relatedType"),
       content: form.get("content"),
-      author: "Priya Sharma",
-      createdAt: new Date().toISOString().slice(0, 10),
     };
-    setNotes((prev) => [payload, ...prev]);
-    setModalOpen(false);
+    setSaving(true);
+    setError("");
+    try {
+      const response = await createNote(payload);
+      setNotes((prev) => [response.data, ...prev]);
+      setModalOpen(false);
+    } catch (err) {
+      setError(err.friendlyMessage || "Unable to save note.");
+    } finally {
+      setSaving(false);
+    }
   }
-
-  function confirmDelete() {
-    setNotes((prev) => prev.filter((n) => n.id !== deleteTarget.id));
-    setDeleteTarget(null);
+  async function confirmDelete() {
+    setSaving(true);
+    setError("");
+    try {
+      await deleteNote(deleteTarget.id);
+      setNotes((prev) => prev.filter((n) => n.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      setError(err.friendlyMessage || "Unable to delete note.");
+    } finally {
+      setSaving(false);
+    }
   }
-
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
       <ListToolbar
@@ -48,8 +82,14 @@ function Notes() {
         onAddClick={() => setModalOpen(true)}
         filters={null}
       />
-
-      {filtered.length === 0 ? (
+      {error && (
+        <div className="mx-6 mt-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          {error}
+        </div>
+      )}
+      {loading ? (
+        <div className="p-6 text-sm text-gray-500">Loading notes...</div>
+      ) : filtered.length === 0 ? (
         <EmptyState
           icon={StickyNote}
           title="No notes found"
@@ -76,7 +116,6 @@ function Notes() {
           ))}
         </div>
       )}
-
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -86,8 +125,8 @@ function Notes() {
             <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-100">
               Cancel
             </button>
-            <button type="submit" form="note-form" className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
-              <Plus size={15} /> Add Note
+            <button type="submit" form="note-form" disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-60">
+              <Plus size={15} /> {saving ? "Adding..." : "Add Note"}
             </button>
           </>
         }
@@ -111,7 +150,6 @@ function Notes() {
           </div>
         </form>
       </Modal>
-
       <Modal
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
@@ -121,8 +159,8 @@ function Notes() {
             <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-100">
               Cancel
             </button>
-            <button onClick={confirmDelete} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700">
-              Delete
+            <button onClick={confirmDelete} disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-60">
+              {saving ? "Deleting..." : "Delete"}
             </button>
           </>
         }
@@ -132,5 +170,4 @@ function Notes() {
     </div>
   );
 }
-
 export default Notes;

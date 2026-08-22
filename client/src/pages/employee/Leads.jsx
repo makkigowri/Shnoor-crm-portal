@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Users } from "lucide-react";
 import ListToolbar from "../../components/employee/ListToolbar";
 import FilterSelect from "../../components/employee/FilterSelect";
@@ -7,12 +7,14 @@ import RowActions from "../../components/employee/RowActions";
 import Pagination from "../../components/employee/Pagination";
 import EmptyState from "../../components/employee/EmptyState";
 import Modal from "../../components/employee/Modal";
-import { leads as initialLeads, LEAD_STATUSES, LEAD_SOURCES } from "../../mock/leads";
-
+import { LEAD_STATUSES, LEAD_SOURCES } from "../../mock/leads";
+import { getLeads, createLead, updateLead, deleteLead } from "../../services/employeeService";
 const PAGE_SIZE = 6;
-
 function Leads() {
-  const [leads, setLeads] = useState(initialLeads);
+  const [leads, setLeads] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [source, setSource] = useState("");
@@ -20,7 +22,27 @@ function Leads() {
   const [modalOpen, setModalOpen] = useState(false);
   const [activeLead, setActiveLead] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-
+  useEffect(() => {
+    let isMounted = true;
+    async function loadLeads() {
+      try {
+        setLoading(true);
+        setError("");
+        const response = await getLeads();
+        if (!isMounted) return;
+        setLeads(response.data);
+      } catch (err) {
+        if (!isMounted) return;
+        setError(err.friendlyMessage || "Unable to load leads.");
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+    loadLeads();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
   const filtered = useMemo(() => {
     return leads.filter((l) => {
       const matchesSearch =
@@ -32,21 +54,17 @@ function Leads() {
       return matchesSearch && matchesStatus && matchesSource;
     });
   }, [leads, search, status, source]);
-
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
   function openAddModal() {
     setActiveLead(null);
     setModalOpen(true);
   }
-
   function openEditModal(lead) {
     setActiveLead(lead);
     setModalOpen(true);
   }
-
-  function handleSave(e) {
+  async function handleSave(e) {
     e.preventDefault();
     const form = new FormData(e.target);
     const payload = {
@@ -57,23 +75,37 @@ function Leads() {
       status: form.get("status"),
       source: form.get("source"),
       value: Number(form.get("value")) || 0,
-      owner: "Priya Sharma",
-      createdAt: new Date().toISOString().slice(0, 10),
     };
-
-    if (activeLead) {
-      setLeads((prev) => prev.map((l) => (l.id === activeLead.id ? { ...l, ...payload } : l)));
-    } else {
-      setLeads((prev) => [{ id: `LD-${Math.floor(1000 + Math.random() * 9000)}`, ...payload }, ...prev]);
+    setSaving(true);
+    setError("");
+    try {
+      if (activeLead) {
+        const response = await updateLead(activeLead.id, payload);
+        setLeads((prev) => prev.map((l) => (l.id === activeLead.id ? response.data : l)));
+      } else {
+        const response = await createLead(payload);
+        setLeads((prev) => [response.data, ...prev]);
+      }
+      setModalOpen(false);
+    } catch (err) {
+      setError(err.friendlyMessage || "Unable to save lead.");
+    } finally {
+      setSaving(false);
     }
-    setModalOpen(false);
   }
-
-  function confirmDelete() {
-    setLeads((prev) => prev.filter((l) => l.id !== deleteTarget.id));
-    setDeleteTarget(null);
+  async function confirmDelete() {
+    setSaving(true);
+    setError("");
+    try {
+      await deleteLead(deleteTarget.id);
+      setLeads((prev) => prev.filter((l) => l.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      setError(err.friendlyMessage || "Unable to delete lead.");
+    } finally {
+      setSaving(false);
+    }
   }
-
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
       <ListToolbar
@@ -89,8 +121,14 @@ function Leads() {
           </>
         }
       />
-
-      {pageItems.length === 0 ? (
+      {error && (
+        <div className="mx-6 mt-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          {error}
+        </div>
+      )}
+      {loading ? (
+        <div className="p-6 text-sm text-gray-500">Loading leads...</div>
+      ) : pageItems.length === 0 ? (
         <EmptyState
           icon={Users}
           title="No leads found"
@@ -137,9 +175,7 @@ function Leads() {
           </table>
         </div>
       )}
-
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} pageSize={PAGE_SIZE} />
-
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -149,8 +185,8 @@ function Leads() {
             <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-100">
               Cancel
             </button>
-            <button type="submit" form="lead-form" className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
-              {activeLead ? "Save Changes" : "Add Lead"}
+            <button type="submit" form="lead-form" disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-60">
+              {saving ? "Saving..." : activeLead ? "Save Changes" : "Add Lead"}
             </button>
           </>
         }
@@ -196,7 +232,6 @@ function Leads() {
           </div>
         </form>
       </Modal>
-
       <Modal
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
@@ -206,8 +241,8 @@ function Leads() {
             <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-100">
               Cancel
             </button>
-            <button onClick={confirmDelete} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700">
-              Delete
+            <button onClick={confirmDelete} disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-60">
+              {saving ? "Deleting..." : "Delete"}
             </button>
           </>
         }
@@ -219,5 +254,4 @@ function Leads() {
     </div>
   );
 }
-
 export default Leads;

@@ -9,7 +9,6 @@ export const employee = {
   joinedOn: "",
   reportingTo: "",
 };
-
 export const dashboardSummary = {
   totalLeads: 0,
   newLeads: 0,
@@ -19,9 +18,6 @@ export const dashboardSummary = {
   wonDeals: 0,
   revenue: 0,
 };
-
 export const leadsBySource = [];
-
 export const dealsByStage = [];
-
 export const revenueTrend = [];

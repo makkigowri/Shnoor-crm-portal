@@ -1,10 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Phone, Mail, Users2, Building2, Contact, KanbanSquare, History } from "lucide-react";
 import ListToolbar from "../../components/employee/ListToolbar";
 import FilterSelect from "../../components/employee/FilterSelect";
 import EmptyState from "../../components/employee/EmptyState";
-import { activities, ACTIVITY_TYPES } from "../../mock/activities";
-
+import { ACTIVITY_TYPES } from "../../mock/activities";
+import { getActivities } from "../../services/employeeService";
 const TYPE_ICON = {
   Call: Phone,
   Email: Mail,
@@ -13,7 +13,6 @@ const TYPE_ICON = {
   "Customer Update": Contact,
   "Deal Update": KanbanSquare,
 };
-
 const TYPE_COLOR = {
   Call: "bg-blue-50 text-blue-600",
   Email: "bg-violet-50 text-violet-600",
@@ -22,19 +21,40 @@ const TYPE_COLOR = {
   "Customer Update": "bg-sky-50 text-sky-600",
   "Deal Update": "bg-orange-50 text-orange-600",
 };
-
 function Activities() {
+  const [activities, setActivities] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [type, setType] = useState("");
-
+  useEffect(() => {
+    let isMounted = true;
+    async function loadActivities() {
+      try {
+        setLoading(true);
+        setError("");
+        const response = await getActivities();
+        if (!isMounted) return;
+        setActivities(response.data);
+      } catch (err) {
+        if (!isMounted) return;
+        setError(err.friendlyMessage || "Unable to load activities.");
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+    loadActivities();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
   const filtered = useMemo(() => {
     return activities.filter((a) => {
-      const matchesSearch = a.title.toLowerCase().includes(search.toLowerCase()) || a.relatedTo.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = a.title.toLowerCase().includes(search.toLowerCase()) || (a.relatedTo || "").toLowerCase().includes(search.toLowerCase());
       const matchesType = type ? a.type === type : true;
       return matchesSearch && matchesType;
     });
-  }, [search, type]);
-
+  }, [activities, search, type]);
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
       <ListToolbar
@@ -43,8 +63,14 @@ function Activities() {
         searchPlaceholder="Search activities..."
         filters={<FilterSelect value={type} onChange={setType} options={ACTIVITY_TYPES} allLabel="All Types" />}
       />
-
-      {filtered.length === 0 ? (
+      {error && (
+        <div className="mx-6 mt-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          {error}
+        </div>
+      )}
+      {loading ? (
+        <div className="p-6 text-sm text-gray-500">Loading activities...</div>
+      ) : filtered.length === 0 ? (
         <EmptyState icon={History} title="No activities found" description="Nothing matches this filter yet." />
       ) : (
         <div className="p-6">
@@ -70,5 +96,4 @@ function Activities() {
     </div>
   );
 }
-
 export default Activities;

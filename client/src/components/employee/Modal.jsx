@@ -1,8 +1,6 @@
 import { X } from "lucide-react";
-
 function Modal({ open, onClose, title, children, footer }) {
   if (!open) return null;
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-gray-900/50" onClick={onClose} />
@@ -22,5 +20,4 @@ function Modal({ open, onClose, title, children, footer }) {
     </div>
   );
 }
-
 export default Modal;

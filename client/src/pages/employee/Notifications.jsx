@@ -1,34 +1,67 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell, UserPlus, ListChecks, KanbanSquare, Contact } from "lucide-react";
 import EmptyState from "../../components/employee/EmptyState";
-import { notifications as initialNotifications } from "../../mock/notifications";
-
+import { getNotifications, markNotificationRead, markAllNotificationsRead } from "../../services/employeeService";
 const TYPE_ICON = {
   lead: UserPlus,
   task: ListChecks,
   deal: KanbanSquare,
   customer: Contact,
 };
-
 const TYPE_COLOR = {
   lead: "bg-blue-50 text-blue-600",
   task: "bg-amber-50 text-amber-600",
   deal: "bg-emerald-50 text-emerald-600",
   customer: "bg-violet-50 text-violet-600",
 };
-
 function Notifications() {
-  const [notifications, setNotifications] = useState(initialNotifications);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const unreadCount = notifications.filter((n) => !n.read).length;
-
-  function markAllRead() {
+  useEffect(() => {
+    let isMounted = true;
+    async function loadNotifications() {
+      try {
+        setLoading(true);
+        setError("");
+        const response = await getNotifications();
+        if (!isMounted) return;
+        setNotifications(response.data);
+      } catch (err) {
+        if (!isMounted) return;
+        setError(err.friendlyMessage || "Unable to load notifications.");
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+    loadNotifications();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+  async function markAllRead() {
+    const previous = notifications;
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    try {
+      await markAllNotificationsRead();
+    } catch (err) {
+      setNotifications(previous);
+      setError(err.friendlyMessage || "Unable to update notifications.");
+    }
   }
-
-  function markRead(id) {
+  async function markRead(id) {
+    const target = notifications.find((n) => n.id === id);
+    if (!target || target.read) return;
+    const previous = notifications;
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    try {
+      await markNotificationRead(id);
+    } catch (err) {
+      setNotifications(previous);
+      setError(err.friendlyMessage || "Unable to update notification.");
+    }
   }
-
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
@@ -38,7 +71,14 @@ function Notifications() {
         </button>
       </div>
 
-      {notifications.length === 0 ? (
+      {error && (
+        <div className="mx-6 mt-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          {error}
+        </div>
+      )}
+      {loading ? (
+        <div className="p-6 text-sm text-gray-500">Loading notifications...</div>
+      ) : notifications.length === 0 ? (
         <EmptyState icon={Bell} title="No notifications" description="You're all caught up for now." />
       ) : (
         <ul className="divide-y divide-gray-50">
@@ -67,5 +107,4 @@ function Notifications() {
     </div>
   );
 }
-
 export default Notifications;

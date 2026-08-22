@@ -1,45 +1,36 @@
-import axios from "axios";
-
-const API_URL = "http://localhost:5000/api/auth";
-
-// Register a new organization and its admin
+import api from "./api";
 const registerOrganization = async (organizationData) => {
-  const response = await axios.post(
-    `${API_URL}/register-organization`,
+  const response = await api.post(
+    "/auth/register-organization",
     organizationData
   );
-
   return response.data;
 };
-
-// Login an existing user
 const loginUser = async (loginData) => {
-  const response = await axios.post(
-    `${API_URL}/login`,
-    loginData
-  );
-
+  const response = await api.post("/auth/login", loginData);
   return response.data;
 };
-
-// Get currently authenticated user
-const getCurrentUser = async (token) => {
-  const response = await axios.get(
-    `${API_URL}/me`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }
-  );
-
+const getCurrentUser = async () => {
+  const response = await api.get("/auth/me");
   return response.data;
 };
-
+const getInvitation = async (token) => {
+  const response = await api.get(`/auth/invitation/${token}`);
+  return response.data;
+};
+const acceptInvitation = async ({ token, name, password }) => {
+  const response = await api.post("/auth/accept-invitation", {
+    token,
+    name,
+    password,
+  });
+  return response.data;
+};
 const authService = {
   registerOrganization,
   loginUser,
   getCurrentUser,
+  getInvitation,
+  acceptInvitation,
 };
-
 export default authService;

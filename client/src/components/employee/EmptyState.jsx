@@ -17,5 +17,4 @@ function EmptyState({ icon: Icon, title, description, actionLabel, onAction }) {
     </div>
   );
 }
-
 export default EmptyState;

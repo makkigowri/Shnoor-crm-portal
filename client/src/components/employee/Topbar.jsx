@@ -1,9 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Menu, Search, Bell, ChevronDown, LogOut, UserCircle } from "lucide-react";
-import { employee } from "../../mock/employee";
-import { notifications } from "../../mock/notifications";
-
+import { useAuth } from "../../context/AuthContext";
+import { getNotifications } from "../../services/employeeService";
 const TITLES = {
   "/employee": "Dashboard",
   "/employee/leads": "Leads",
@@ -15,14 +14,33 @@ const TITLES = {
   "/employee/notifications": "Notifications",
   "/employee/profile": "Profile",
 };
-
 function Topbar({ onMenuClick }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const ref = useRef(null);
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
+  useEffect(() => {
+    let isMounted = true;
+    async function loadUnreadCount() {
+      try {
+        const response = await getNotifications();
+        if (!isMounted) return;
+        setUnreadCount(response.data.filter((n) => !n.read).length);
+      } catch {
+        if (!isMounted) return;
+      }
+    }
+    loadUnreadCount();
+    return () => {
+      isMounted = false;
+    };
+  }, [location.pathname]);
+  function handleLogout() {
+    logout();
+    navigate("/login");
+  }
   useEffect(() => {
     function handleClickOutside(e) {
       if (ref.current && !ref.current.contains(e.target)) {
@@ -32,12 +50,10 @@ function Topbar({ onMenuClick }) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
   const title = TITLES[location.pathname] || "Dashboard";
-  const initials = employee.name
-    ? employee.name.split(" ").map((n) => n[0]).join("")
+  const initials = user?.name
+    ? user.name.split(" ").map((n) => n[0]).join("")
     : "";
-
   return (
     <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6 gap-4">
       <div className="flex items-center gap-3">
@@ -49,7 +65,6 @@ function Topbar({ onMenuClick }) {
         </button>
         <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
       </div>
-
       <div className="hidden md:flex relative flex-1 max-w-md">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
         <input
@@ -57,7 +72,6 @@ function Topbar({ onMenuClick }) {
           className="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
         />
       </div>
-
       <div className="flex items-center gap-2">
         <button
           onClick={() => navigate("/employee/notifications")}
@@ -68,7 +82,6 @@ function Topbar({ onMenuClick }) {
             <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500" />
           )}
         </button>
-
         <div className="relative" ref={ref}>
           <button
             onClick={() => setProfileOpen((o) => !o)}
@@ -77,20 +90,19 @@ function Topbar({ onMenuClick }) {
             <div className="h-8 w-8 rounded-full bg-blue-600 text-white text-xs font-semibold flex items-center justify-center">
               {initials || <UserCircle size={18} />}
             </div>
-            <span className="hidden sm:block text-sm font-medium text-gray-700">{employee.name || "My Account"}</span>
+            <span className="hidden sm:block text-sm font-medium text-gray-700">{user?.name || "My Account"}</span>
             <ChevronDown size={16} className="hidden sm:block text-gray-400" />
           </button>
-
           {profileOpen && (
             <div className="absolute right-0 top-11 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-20">
-              <p className="px-3 py-2 text-xs text-gray-400 border-b border-gray-100">{employee.email || "No account data"}</p>
+              <p className="px-3 py-2 text-xs text-gray-400 border-b border-gray-100">{user?.email || "No account data"}</p>
               <button
                 onClick={() => { setProfileOpen(false); navigate("/employee/profile"); }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
               >
                 <UserCircle size={15} /> My Account
               </button>
-              <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50">
+              <button onClick={handleLogout} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50">
                 <LogOut size={15} /> Logout
               </button>
             </div>
@@ -100,5 +112,4 @@ function Topbar({ onMenuClick }) {
     </header>
   );
 }
-
 export default Topbar;

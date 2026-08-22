@@ -8,10 +8,8 @@ import {
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-
 function OrganizationSidebar() {
   const { user, logout } = useAuth();
-
   const navigation = [
     {
       name: "Dashboard",
@@ -40,11 +38,8 @@ function OrganizationSidebar() {
       icon: UserCircle,
     },
   ];
-
   return (
     <aside className="w-64 shrink-0 bg-white border-r border-slate-200 min-h-screen flex flex-col">
-
-      {/* Logo */}
       <div className="h-16 px-6 flex items-center border-b border-slate-200">
         <div>
           <h1 className="text-lg font-bold text-slate-900">
@@ -56,13 +51,9 @@ function OrganizationSidebar() {
           </p>
         </div>
       </div>
-
-      {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1">
-
         {navigation.map((item) => {
           const Icon = item.icon;
-
           return (
             <NavLink
               key={item.path}
@@ -81,22 +72,16 @@ function OrganizationSidebar() {
             </NavLink>
           );
         })}
-
       </nav>
-
-      {/* User section */}
       <div className="border-t border-slate-200 p-4">
-
         <div className="mb-3 px-2">
           <p className="text-sm font-semibold text-slate-900 truncate">
             {user?.name || "Organization Admin"}
           </p>
-
           <p className="text-xs text-slate-500 truncate">
             {user?.email || ""}
           </p>
         </div>
-
         <button
           onClick={logout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-red-50 hover:text-red-600 transition"
@@ -104,11 +89,8 @@ function OrganizationSidebar() {
           <LogOut size={19} />
           <span>Logout</span>
         </button>
-
       </div>
-
     </aside>
   );
 }
-
 export default OrganizationSidebar;

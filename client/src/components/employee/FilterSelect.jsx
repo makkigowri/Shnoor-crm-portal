@@ -14,5 +14,4 @@ function FilterSelect({ value, onChange, options, allLabel = "All" }) {
     </select>
   );
 }
-
 export default FilterSelect;

@@ -7,7 +7,6 @@
   border: 2px solid transparent;
   transition: border-color 0.3s;
   margin-bottom: 24px;
-
   &:hover {
     border-color: var(--accent-border);
   }
@@ -16,28 +15,23 @@
     outline-offset: 2px;
   }
 }
-
 .hero {
   position: relative;
-
   .base,
   .framework,
   .vite {
     inset-inline: 0;
     margin: 0 auto;
   }
-
   .base {
     width: 170px;
     position: relative;
     z-index: 0;
   }
-
   .framework,
   .vite {
     position: absolute;
   }
-
   .framework {
     z-index: 1;
     top: 34px;
