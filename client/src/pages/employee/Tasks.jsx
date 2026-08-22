@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ListChecks, CalendarDays } from "lucide-react";
 import ListToolbar from "../../components/employee/ListToolbar";
 import FilterSelect from "../../components/employee/FilterSelect";
@@ -6,39 +6,58 @@ import StatusBadge from "../../components/employee/StatusBadge";
 import RowActions from "../../components/employee/RowActions";
 import EmptyState from "../../components/employee/EmptyState";
 import Modal from "../../components/employee/Modal";
-import { tasks as initialTasks, TASK_STATUSES, TASK_PRIORITIES } from "../../mock/tasks";
-
+import { TASK_STATUSES, TASK_PRIORITIES } from "../../mock/tasks";
+import { getTasks, createTask, updateTask, deleteTask } from "../../services/employeeService";
 const TABS = ["All", "Pending", "In Progress", "Completed"];
-
 function Tasks() {
-  const [tasks, setTasks] = useState(initialTasks);
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState("All");
   const [search, setSearch] = useState("");
   const [priority, setPriority] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [activeTask, setActiveTask] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-
+  useEffect(() => {
+    let isMounted = true;
+    async function loadTasks() {
+      try {
+        setLoading(true);
+        setError("");
+        const response = await getTasks();
+        if (!isMounted) return;
+        setTasks(response.data);
+      } catch (err) {
+        if (!isMounted) return;
+        setError(err.friendlyMessage || "Unable to load tasks.");
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+    loadTasks();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
   const filtered = useMemo(() => {
     return tasks.filter((t) => {
       const matchesTab = tab === "All" ? true : t.status === tab;
-      const matchesSearch = t.title.toLowerCase().includes(search.toLowerCase()) || t.relatedTo.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = t.title.toLowerCase().includes(search.toLowerCase()) || (t.relatedTo || "").toLowerCase().includes(search.toLowerCase());
       const matchesPriority = priority ? t.priority === priority : true;
       return matchesTab && matchesSearch && matchesPriority;
     });
   }, [tasks, tab, search, priority]);
-
   function openAddModal() {
     setActiveTask(null);
     setModalOpen(true);
   }
-
   function openEditModal(task) {
     setActiveTask(task);
     setModalOpen(true);
   }
-
-  function handleSave(e) {
+  async function handleSave(e) {
     e.preventDefault();
     const form = new FormData(e.target);
     const payload = {
@@ -47,27 +66,50 @@ function Tasks() {
       type: form.get("type"),
       priority: form.get("priority"),
       status: form.get("status"),
-      dueDate: form.get("dueDate"),
+      dueDate: form.get("dueDate") || null,
     };
-
-    if (activeTask) {
-      setTasks((prev) => prev.map((t) => (t.id === activeTask.id ? { ...t, ...payload } : t)));
-    } else {
-      setTasks((prev) => [{ id: `TK-${Math.floor(4000 + Math.random() * 9000)}`, ...payload }, ...prev]);
+    setSaving(true);
+    setError("");
+    try {
+      if (activeTask) {
+        const response = await updateTask(activeTask.id, payload);
+        setTasks((prev) => prev.map((t) => (t.id === activeTask.id ? response.data : t)));
+      } else {
+        const response = await createTask(payload);
+        setTasks((prev) => [response.data, ...prev]);
+      }
+      setModalOpen(false);
+    } catch (err) {
+      setError(err.friendlyMessage || "Unable to save task.");
+    } finally {
+      setSaving(false);
     }
-    setModalOpen(false);
   }
-
-  function confirmDelete() {
-    setTasks((prev) => prev.filter((t) => t.id !== deleteTarget.id));
-    setDeleteTarget(null);
+  async function confirmDelete() {
+    setSaving(true);
+    setError("");
+    try {
+      await deleteTask(deleteTarget.id);
+      setTasks((prev) => prev.filter((t) => t.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      setError(err.friendlyMessage || "Unable to delete task.");
+    } finally {
+      setSaving(false);
+    }
   }
-
-  function toggleStatus(task) {
+  async function toggleStatus(task) {
     const next = task.status === "Completed" ? "Pending" : task.status === "Pending" ? "In Progress" : "Completed";
+    const previous = tasks;
     setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: next } : t)));
+    try {
+      const response = await updateTask(task.id, { status: next });
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? response.data : t)));
+    } catch (err) {
+      setTasks(previous);
+      setError(err.friendlyMessage || "Unable to update task.");
+    }
   }
-
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
       <div className="flex items-center gap-1 px-6 pt-4">
@@ -83,7 +125,6 @@ function Tasks() {
           </button>
         ))}
       </div>
-
       <ListToolbar
         searchValue={search}
         onSearchChange={setSearch}
@@ -92,8 +133,14 @@ function Tasks() {
         onAddClick={openAddModal}
         filters={<FilterSelect value={priority} onChange={setPriority} options={TASK_PRIORITIES} allLabel="All Priorities" />}
       />
-
-      {filtered.length === 0 ? (
+      {error && (
+        <div className="mx-6 mt-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          {error}
+        </div>
+      )}
+      {loading ? (
+        <div className="p-6 text-sm text-gray-500">Loading tasks...</div>
+      ) : filtered.length === 0 ? (
         <EmptyState
           icon={ListChecks}
           title="No tasks found"
@@ -127,7 +174,6 @@ function Tasks() {
           ))}
         </ul>
       )}
-
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -137,8 +183,8 @@ function Tasks() {
             <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-100">
               Cancel
             </button>
-            <button type="submit" form="task-form" className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
-              {activeTask ? "Save Changes" : "Add Task"}
+            <button type="submit" form="task-form" disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-60">
+              {saving ? "Saving..." : activeTask ? "Save Changes" : "Add Task"}
             </button>
           </>
         }
@@ -182,7 +228,6 @@ function Tasks() {
           </div>
         </form>
       </Modal>
-
       <Modal
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
@@ -192,8 +237,8 @@ function Tasks() {
             <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-100">
               Cancel
             </button>
-            <button onClick={confirmDelete} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700">
-              Delete
+            <button onClick={confirmDelete} disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-60">
+              {saving ? "Deleting..." : "Delete"}
             </button>
           </>
         }
@@ -205,5 +250,4 @@ function Tasks() {
     </div>
   );
 }
-
 export default Tasks;

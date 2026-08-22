@@ -1,5 +1,4 @@
 const COLORS = ["#2563eb", "#60a5fa", "#93c5fd", "#1d4ed8", "#38bdf8", "#0ea5e9"];
-
 function DonutChart({ data }) {
   if (!data || data.length === 0) {
     return (
@@ -8,11 +7,9 @@ function DonutChart({ data }) {
       </div>
     );
   }
-
   const total = data.reduce((sum, d) => sum + d.value, 0) || 1;
   const radius = 60;
   const circumference = 2 * Math.PI * radius;
-
   const segments = data.reduce((acc, d) => {
     const fraction = d.value / total;
     const dash = fraction * circumference;
@@ -20,7 +17,6 @@ function DonutChart({ data }) {
     const prevOffset = acc.length ? acc[acc.length - 1].offset + acc[acc.length - 1].dash : 0;
     return [...acc, { ...d, dash, gap, offset: prevOffset }];
   }, []);
-
   return (
     <div className="flex items-center gap-6">
       <svg width="160" height="160" viewBox="0 0 160 160">
@@ -52,5 +48,4 @@ function DonutChart({ data }) {
     </div>
   );
 }
-
 export default DonutChart;

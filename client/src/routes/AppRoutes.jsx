@@ -2,13 +2,13 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import LandingPage from "../pages/LandingPage";
 import LoginPage from "../pages/LoginPage";
 import SignupPage from "../pages/SignupPage";
+import AcceptInvitationPage from "../pages/AcceptInvitationPage";
 import OrganizationLayout from "../components/organization/OrganizationLayout";
 import OrganizationDashboard from "../pages/organization/OrganizationDashboard";
 import EmployeesPage from "../pages/organization/EmployeesPage";
 import InvitationsPage from "../pages/organization/InvitationsPage";
 import OrganizationSettingsPage from "../pages/organization/OrganizationSettingsPage";
 import OrganizationProfilePage from "../pages/organization/OrganizationProfilePage";
-
 import ProtectedRoute from "../components/ProtectedRoute";
 import EmployeeLayout from "../components/employee/EmployeeLayout";
 import DashboardHome from "../pages/employee/DashboardHome";
@@ -27,8 +27,9 @@ function AppRoutes() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/accept-invitation/:token" element={<AcceptInvitationPage />} />
         <Route path="/organization" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={["ORG_ADMIN"]}>
               <OrganizationLayout />
             </ProtectedRoute>
           }>
@@ -38,8 +39,11 @@ function AppRoutes() {
             <Route path="settings" element={<OrganizationSettingsPage />} />
             <Route path="profile" element={<OrganizationProfilePage />} />
         </Route>
-
-        <Route path="/employee" element={<EmployeeLayout />}>
+        <Route path="/employee" element={
+            <ProtectedRoute allowedRoles={["EMPLOYEE"]}>
+              <EmployeeLayout />
+            </ProtectedRoute>
+          }>
           <Route index element={<DashboardHome />} />
           <Route path="leads" element={<Leads />} />
           <Route path="customers" element={<Customers />} />

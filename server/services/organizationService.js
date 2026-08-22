@@ -1,15 +1,6 @@
 const crypto = require("crypto");
-
 const pool = require("../config/db");
-
-
-// ============================================================
-// ORGANIZATION DASHBOARD
-// ============================================================
-
 const getOrganizationDashboard = async (organizationId) => {
-
-  // Total employees
   const totalEmployeesResult = await pool.query(
     `
     SELECT COUNT(*) AS count
@@ -19,9 +10,6 @@ const getOrganizationDashboard = async (organizationId) => {
     `,
     [organizationId]
   );
-
-
-  // Active employees
   const activeEmployeesResult = await pool.query(
     `
     SELECT COUNT(*) AS count
@@ -32,9 +20,6 @@ const getOrganizationDashboard = async (organizationId) => {
     `,
     [organizationId]
   );
-
-
-  // Inactive employees
   const inactiveEmployeesResult = await pool.query(
     `
     SELECT COUNT(*) AS count
@@ -45,9 +30,6 @@ const getOrganizationDashboard = async (organizationId) => {
     `,
     [organizationId]
   );
-
-
-  // Pending invitations
   const pendingInvitationsResult = await pool.query(
     `
     SELECT COUNT(*) AS count
@@ -58,34 +40,22 @@ const getOrganizationDashboard = async (organizationId) => {
     `,
     [organizationId]
   );
-
-
   return {
     totalEmployees: Number(
       totalEmployeesResult.rows[0].count
     ),
-
     activeEmployees: Number(
       activeEmployeesResult.rows[0].count
     ),
-
     inactiveEmployees: Number(
       inactiveEmployeesResult.rows[0].count
     ),
-
     pendingInvitations: Number(
       pendingInvitationsResult.rows[0].count
     ),
   };
 };
-
-
-// ============================================================
-// ORGANIZATION EMPLOYEES
-// ============================================================
-
 const getOrganizationEmployees = async (organizationId) => {
-
   const result = await pool.query(
     `
     SELECT
@@ -105,40 +75,23 @@ const getOrganizationEmployees = async (organizationId) => {
 
   return result.rows;
 };
-
-
-// ============================================================
-// CREATE INVITATION
-// ============================================================
-
 const createInvitation = async ({
   organizationId,
   invitedBy,
   email,
   role,
 }) => {
-
   const normalizedEmail = email
     .trim()
     .toLowerCase();
-
-
   const allowedRoles = [
     "SALES_MANAGER",
     "SALES_EXECUTIVE",
     "SUPPORT_AGENT",
   ];
-
-
   if (!allowedRoles.includes(role)) {
     throw new Error("Invalid employee role");
   }
-
-
-  // ----------------------------------------------------------
-  // Check if employee already exists
-  // ----------------------------------------------------------
-
   const existingUserResult = await pool.query(
     `
     SELECT id
@@ -147,17 +100,9 @@ const createInvitation = async ({
     `,
     [normalizedEmail]
   );
-
-
   if (existingUserResult.rows.length > 0) {
     throw new Error("Employee already exists");
   }
-
-
-  // ----------------------------------------------------------
-  // Check existing pending invitation
-  // ----------------------------------------------------------
-
   const existingInvitationResult = await pool.query(
     `
     SELECT id
@@ -172,37 +117,19 @@ const createInvitation = async ({
       normalizedEmail,
     ]
   );
-
-
   if (existingInvitationResult.rows.length > 0) {
     throw new Error(
       "A pending invitation already exists"
     );
   }
-
-
-  // ----------------------------------------------------------
-  // Generate invitation token
-  // ----------------------------------------------------------
-
   const rawToken = crypto.randomBytes(32).toString("hex");
-
   const tokenHash = crypto
     .createHash("sha256")
     .update(rawToken)
     .digest("hex");
-
-
-  // Invitation valid for 7 days
   const expiresAt = new Date(
     Date.now() + 7 * 24 * 60 * 60 * 1000
   );
-
-
-  // ----------------------------------------------------------
-  // Insert invitation
-  // ----------------------------------------------------------
-
   const result = await pool.query(
     `
     INSERT INTO invitations (
@@ -242,27 +169,13 @@ const createInvitation = async ({
       invitedBy,
     ]
   );
-
-
   const invitation = result.rows[0];
-
-
   return {
     ...invitation,
-
-    // Temporary for development/testing.
-    // Later this will be sent through email.
     invitationToken: rawToken,
   };
 };
-
-
-// ============================================================
-// GET ORGANIZATION INVITATIONS
-// ============================================================
-
 const getOrganizationInvitations = async (organizationId) => {
-
   const result = await pool.query(
     `
     SELECT
@@ -282,15 +195,8 @@ const getOrganizationInvitations = async (organizationId) => {
     `,
     [organizationId]
   );
-
-
   return result.rows;
 };
-
-// ============================================================
-// ORGANIZATION SETTINGS
-// ============================================================
-
 const getOrganizationSettings = async (organizationId) => {
   const result = await pool.query(
     `
@@ -305,15 +211,11 @@ const getOrganizationSettings = async (organizationId) => {
     `,
     [organizationId]
   );
-
   if (result.rows.length === 0) {
     throw new Error("Organization not found");
   }
-
   return result.rows[0];
 };
-
-
 const updateOrganizationSettings = async (
   organizationId,
   name
@@ -334,19 +236,11 @@ const updateOrganizationSettings = async (
     `,
     [name, organizationId]
   );
-
   if (result.rows.length === 0) {
     throw new Error("Organization not found");
   }
-
   return result.rows[0];
 };
-
-
-// ============================================================
-// ORGANIZATION PROFILE
-// ============================================================
-
 const getOrganizationProfile = async (userId) => {
   const result = await pool.query(
     `
@@ -364,15 +258,12 @@ const getOrganizationProfile = async (userId) => {
     `,
     [userId]
   );
-
   if (result.rows.length === 0) {
     throw new Error("User not found");
   }
 
   return result.rows[0];
 };
-
-
 const updateOrganizationProfile = async (
   userId,
   name
@@ -396,14 +287,11 @@ const updateOrganizationProfile = async (
     `,
     [name, userId]
   );
-
   if (result.rows.length === 0) {
     throw new Error("User not found");
   }
-
   return result.rows[0];
 };
-
 module.exports = {
   getOrganizationDashboard,
   getOrganizationEmployees,

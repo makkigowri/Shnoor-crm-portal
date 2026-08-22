@@ -1,32 +1,77 @@
+import { useEffect, useState } from "react";
 import { Users, UserPlus, Contact, KanbanSquare, ListChecks, Trophy, IndianRupee } from "lucide-react";
 import StatCard from "../../components/employee/StatCard";
 import BarChart from "../../components/employee/BarChart";
 import DonutChart from "../../components/employee/DonutChart";
 import StatusBadge from "../../components/employee/StatusBadge";
-import { dashboardSummary, revenueTrend, dealsByStage, leadsBySource } from "../../mock/employee";
-import { tasks } from "../../mock/tasks";
-import { activities } from "../../mock/activities";
-
+import { getEmployeeDashboard } from "../../services/employeeService";
 function formatCurrency(value) {
   return `₹${(value / 100000).toFixed(1)}L`;
 }
-
 function DashboardHome() {
-  const upcomingTasks = tasks.filter((t) => t.status !== "Completed").slice(0, 5);
-  const recentActivities = activities.slice(0, 5);
-
+  const [dashboard, setDashboard] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let isMounted = true;
+    async function loadDashboard() {
+      try {
+        setLoading(true);
+        setError("");
+        const response = await getEmployeeDashboard();
+        if (!isMounted) return;
+        setDashboard(response.data);
+      } catch (err) {
+        if (!isMounted) return;
+        setError(err.friendlyMessage || "Unable to load dashboard data.");
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+    loadDashboard();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 text-sm text-gray-500">
+        Loading dashboard...
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 text-sm text-red-600">
+        {error}
+      </div>
+    );
+  }
+  const summary = dashboard?.summary || {
+    totalLeads: 0,
+    newLeads: 0,
+    totalCustomers: 0,
+    activeDeals: 0,
+    pendingTasks: 0,
+    wonDeals: 0,
+    revenue: 0,
+  };
+  const revenueTrend = dashboard?.revenueTrend || [];
+  const dealsByStage = dashboard?.dealsByStage || [];
+  const leadsBySource = dashboard?.leadsBySource || [];
+  const upcomingTasks = dashboard?.upcomingTasks || [];
+  const recentActivities = dashboard?.recentActivities || [];
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-        <StatCard icon={Users} label="Total Leads" value={dashboardSummary.totalLeads} accent="blue" />
-        <StatCard icon={UserPlus} label="New Leads" value={dashboardSummary.newLeads} accent="violet" />
-        <StatCard icon={Contact} label="Total Customers" value={dashboardSummary.totalCustomers} accent="emerald" />
-        <StatCard icon={KanbanSquare} label="Active Deals" value={dashboardSummary.activeDeals} accent="amber" />
-        <StatCard icon={ListChecks} label="Pending Tasks" value={dashboardSummary.pendingTasks} accent="red" />
-        <StatCard icon={Trophy} label="Won Deals" value={dashboardSummary.wonDeals} accent="emerald" />
-        <StatCard icon={IndianRupee} label="Revenue" value={formatCurrency(dashboardSummary.revenue)} accent="blue" />
+        <StatCard icon={Users} label="Total Leads" value={summary.totalLeads} accent="blue" />
+        <StatCard icon={UserPlus} label="New Leads" value={summary.newLeads} accent="violet" />
+        <StatCard icon={Contact} label="Total Customers" value={summary.totalCustomers} accent="emerald" />
+        <StatCard icon={KanbanSquare} label="Active Deals" value={summary.activeDeals} accent="amber" />
+        <StatCard icon={ListChecks} label="Pending Tasks" value={summary.pendingTasks} accent="red" />
+        <StatCard icon={Trophy} label="Won Deals" value={summary.wonDeals} accent="emerald" />
+        <StatCard icon={IndianRupee} label="Revenue" value={formatCurrency(summary.revenue)} accent="blue" />
       </div>
-
       <div className="grid lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm p-5">
           <div className="flex items-center justify-between mb-2">
@@ -35,13 +80,11 @@ function DashboardHome() {
           </div>
           <BarChart data={revenueTrend} valueFormatter={formatCurrency} />
         </div>
-
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
           <h3 className="text-sm font-semibold text-gray-900 mb-4">Deals by Stage</h3>
           <DonutChart data={dealsByStage} />
         </div>
       </div>
-
       <div className="grid lg:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
           <h3 className="text-sm font-semibold text-gray-900 mb-4">Leads by Source</h3>
@@ -69,7 +112,6 @@ function DashboardHome() {
             </div>
           )}
         </div>
-
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
           <h3 className="text-sm font-semibold text-gray-900 mb-4">Upcoming Tasks</h3>
           {upcomingTasks.length === 0 ? (
@@ -88,7 +130,6 @@ function DashboardHome() {
             </ul>
           )}
         </div>
-
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
           <h3 className="text-sm font-semibold text-gray-900 mb-4">Recent Activity</h3>
           {recentActivities.length === 0 ? (
@@ -111,5 +152,4 @@ function DashboardHome() {
     </div>
   );
 }
-
 export default DashboardHome;

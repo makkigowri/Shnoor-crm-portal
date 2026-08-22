@@ -6,9 +6,7 @@ function BarChart({ data, valueFormatter }) {
       </div>
     );
   }
-
   const max = Math.max(...data.map((d) => d.value), 1);
-
   return (
     <div className="flex items-end gap-4 h-48 pt-4">
       {data.map((d) => (
@@ -26,5 +24,4 @@ function BarChart({ data, valueFormatter }) {
     </div>
   );
 }
-
 export default BarChart;

@@ -11,5 +11,4 @@ function TableSkeleton({ rows = 5, columns = 5 }) {
     </div>
   );
 }
-
 export default TableSkeleton;

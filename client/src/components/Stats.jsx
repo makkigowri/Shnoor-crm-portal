@@ -5,7 +5,6 @@ function Stats() {
     { value: "99.9%", label: "Uptime" },
     { value: "1M+", label: "Activities Logged" },
   ];
-
   return (
     <section className="py-16 bg-slate-50">
       <div className="max-w-6xl mx-auto grid md:grid-cols-4 gap-6">
@@ -26,5 +25,4 @@ function Stats() {
     </section>
   );
 }
-
 export default Stats;

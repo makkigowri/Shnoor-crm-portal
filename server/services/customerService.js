@@ -1,0 +1,165 @@
+const pool = require("../config/db");
+const { createNotification } = require("./notificationService");
+const CUSTOMER_STATUSES = ["Active", "Inactive", "At Risk"];
+const mapCustomer = (row) => ({
+  id: row.id,
+  name: row.name,
+  company: row.company,
+  email: row.email,
+  phone: row.phone,
+  status: row.status,
+  industry: row.industry,
+  totalSpend: Number(row.total_spend),
+  since: row.customer_since,
+  owner: row.owner_name,
+  ownerId: row.owner_id,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+const getCustomers = async (organizationId, ownerId) => {
+  const result = await pool.query(
+    `
+    SELECT c.*, u.name AS owner_name
+    FROM customers c
+    JOIN users u ON u.id = c.owner_id
+    WHERE c.organization_id = $1
+      AND c.owner_id = $2
+    ORDER BY c.created_at DESC
+    `,
+    [organizationId, ownerId]
+  );
+  return result.rows.map(mapCustomer);
+};
+const getCustomerById = async (id, organizationId, ownerId) => {
+  const result = await pool.query(
+    `
+    SELECT c.*, u.name AS owner_name
+    FROM customers c
+    JOIN users u ON u.id = c.owner_id
+    WHERE c.id = $1
+      AND c.organization_id = $2
+      AND c.owner_id = $3
+    `,
+    [id, organizationId, ownerId]
+  );
+  if (result.rows.length === 0) {
+    const error = new Error("Customer not found");
+    error.statusCode = 404;
+    throw error;
+  }
+  return mapCustomer(result.rows[0]);
+};
+const createCustomer = async (organizationId, ownerId, payload) => {
+  const { name, company, email, phone, status, industry, totalSpend, since } = payload;
+  if (!name || !company || !email) {
+    const error = new Error("Name, company and email are required");
+    error.statusCode = 400;
+    throw error;
+  }
+  const finalStatus = status || "Active";
+  if (!CUSTOMER_STATUSES.includes(finalStatus)) {
+    const error = new Error("Invalid customer status");
+    error.statusCode = 400;
+    throw error;
+  }
+  const result = await pool.query(
+    `
+    INSERT INTO customers (
+      organization_id, owner_id, name, company, email, phone, status, industry, total_spend, customer_since
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, CURRENT_DATE))
+    RETURNING id
+    `,
+    [
+      organizationId,
+      ownerId,
+      name,
+      company,
+      email,
+      phone || null,
+      finalStatus,
+      industry || null,
+      Number(totalSpend) || 0,
+      since || null,
+    ]
+  );
+  const customer = await getCustomerById(result.rows[0].id, organizationId, ownerId);
+  await createNotification(organizationId, ownerId, {
+    type: "customer",
+    title: "New customer added",
+    description: `${customer.name} from ${customer.company} was added to your customers`,
+  });
+  return customer;
+};
+const updateCustomer = async (id, organizationId, ownerId, payload) => {
+  const { name, company, email, phone, status, industry, totalSpend, since } = payload;
+  if (status && !CUSTOMER_STATUSES.includes(status)) {
+    const error = new Error("Invalid customer status");
+    error.statusCode = 400;
+    throw error;
+  }
+  const result = await pool.query(
+    `
+    UPDATE customers
+    SET
+      name = COALESCE($1, name),
+      company = COALESCE($2, company),
+      email = COALESCE($3, email),
+      phone = COALESCE($4, phone),
+      status = COALESCE($5, status),
+      industry = COALESCE($6, industry),
+      total_spend = COALESCE($7, total_spend),
+      customer_since = COALESCE($8, customer_since),
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = $9
+      AND organization_id = $10
+      AND owner_id = $11
+    RETURNING id
+    `,
+    [
+      name || null,
+      company || null,
+      email || null,
+      phone || null,
+      status || null,
+      industry || null,
+      totalSpend === undefined ? null : Number(totalSpend),
+      since || null,
+      id,
+      organizationId,
+      ownerId,
+    ]
+  );
+  if (result.rows.length === 0) {
+    const error = new Error("Customer not found");
+    error.statusCode = 404;
+    throw error;
+  }
+  return getCustomerById(id, organizationId, ownerId);
+};
+const deleteCustomer = async (id, organizationId, ownerId) => {
+  const result = await pool.query(
+    `
+    DELETE FROM customers
+    WHERE id = $1
+      AND organization_id = $2
+      AND owner_id = $3
+    RETURNING id
+    `,
+    [id, organizationId, ownerId]
+  );
+  if (result.rows.length === 0) {
+    const error = new Error("Customer not found");
+    error.statusCode = 404;
+    throw error;
+  }
+  return { id };
+};
+module.exports = {
+  CUSTOMER_STATUSES,
+  getCustomers,
+  getCustomerById,
+  createCustomer,
+  updateCustomer,
+  deleteCustomer,
+};

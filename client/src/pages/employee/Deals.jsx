@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, CalendarDays, User } from "lucide-react";
 import Modal from "../../components/employee/Modal";
-import { deals as initialDeals, DEAL_STAGES } from "../../mock/deals";
-
+import { DEAL_STAGES } from "../../mock/deals";
+import { getDeals, createDeal, updateDeal } from "../../services/employeeService";
 const STAGE_STYLES = {
   New: "border-t-blue-500",
   Qualified: "border-t-sky-500",
@@ -11,45 +11,79 @@ const STAGE_STYLES = {
   Won: "border-t-emerald-500",
   Lost: "border-t-red-500",
 };
-
 function formatValue(value) {
   return `₹${(value / 100000).toFixed(1)}L`;
 }
-
 function Deals() {
-  const [deals, setDeals] = useState(initialDeals);
+  const [deals, setDeals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [draggedId, setDraggedId] = useState(null);
-
+  useEffect(() => {
+    let isMounted = true;
+    async function loadDeals() {
+      try {
+        setLoading(true);
+        setError("");
+        const response = await getDeals();
+        if (!isMounted) return;
+        setDeals(response.data);
+      } catch (err) {
+        if (!isMounted) return;
+        setError(err.friendlyMessage || "Unable to load deals.");
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+    loadDeals();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
   const columns = useMemo(() => {
     return DEAL_STAGES.map((stage) => ({
       stage,
       items: deals.filter((d) => d.stage === stage),
     }));
   }, [deals]);
-
-  function handleDrop(stage) {
+  async function handleDrop(stage) {
     if (!draggedId) return;
-    setDeals((prev) => prev.map((d) => (d.id === draggedId ? { ...d, stage } : d)));
+    const dealId = draggedId;
     setDraggedId(null);
+    const previous = deals;
+    setDeals((prev) => prev.map((d) => (d.id === dealId ? { ...d, stage } : d)));
+    try {
+      const response = await updateDeal(dealId, { stage });
+      setDeals((prev) => prev.map((d) => (d.id === dealId ? response.data : d)));
+    } catch (err) {
+      setDeals(previous);
+      setError(err.friendlyMessage || "Unable to update deal stage.");
+    }
   }
-
-  function handleSave(e) {
+  async function handleSave(e) {
     e.preventDefault();
     const form = new FormData(e.target);
     const payload = {
-      id: `DL-${Math.floor(3000 + Math.random() * 9000)}`,
       title: form.get("title"),
       company: form.get("company"),
       stage: form.get("stage"),
       value: Number(form.get("value")) || 0,
-      owner: "Priya Sharma",
-      closeDate: form.get("closeDate"),
+      closeDate: form.get("closeDate") || null,
     };
-    setDeals((prev) => [payload, ...prev]);
-    setModalOpen(false);
+    setSaving(true);
+    setError("");
+    try {
+      const response = await createDeal(payload);
+      setDeals((prev) => [response.data, ...prev]);
+      setModalOpen(false);
+    } catch (err) {
+      setError(err.friendlyMessage || "Unable to create deal.");
+    } finally {
+      setSaving(false);
+    }
   }
-
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -64,51 +98,57 @@ function Deals() {
           Add Deal
         </button>
       </div>
-
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {columns.map((col) => (
-          <div
-            key={col.stage}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={() => handleDrop(col.stage)}
-            className="w-72 shrink-0"
-          >
-            <div className="flex items-center justify-between mb-3 px-1">
-              <h3 className="text-sm font-semibold text-gray-700">{col.stage}</h3>
-              <span className="text-xs text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">{col.items.length}</span>
-            </div>
-
-            <div className="space-y-3 min-h-[120px]">
-              {col.items.map((deal) => (
-                <div
-                  key={deal.id}
-                  draggable
-                  onDragStart={() => setDraggedId(deal.id)}
-                  className={`bg-white rounded-xl border border-gray-200 border-t-4 ${STAGE_STYLES[deal.stage]} shadow-sm p-4 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow`}
-                >
-                  <p className="text-sm font-medium text-gray-900">{deal.title}</p>
-                  <p className="text-xs text-gray-400 mt-1">{deal.company}</p>
-                  <p className="text-sm font-semibold text-blue-600 mt-3">{formatValue(deal.value)}</p>
-                  <div className="flex items-center justify-between mt-3 text-xs text-gray-400">
-                    <span className="flex items-center gap-1">
-                      <User size={12} /> {deal.owner.split(" ")[0]}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <CalendarDays size={12} /> {deal.closeDate}
-                    </span>
+      {error && (
+        <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          {error}
+        </div>
+      )}
+      {loading ? (
+        <div className="p-6 text-sm text-gray-500">Loading deals...</div>
+      ) : (
+        <div className="flex gap-4 overflow-x-auto pb-4">
+          {columns.map((col) => (
+            <div
+              key={col.stage}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => handleDrop(col.stage)}
+              className="w-72 shrink-0"
+            >
+              <div className="flex items-center justify-between mb-3 px-1">
+                <h3 className="text-sm font-semibold text-gray-700">{col.stage}</h3>
+                <span className="text-xs text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">{col.items.length}</span>
+              </div>
+              <div className="space-y-3 min-h-[120px]">
+                {col.items.map((deal) => (
+                  <div
+                    key={deal.id}
+                    draggable
+                    onDragStart={() => setDraggedId(deal.id)}
+                    className={`bg-white rounded-xl border border-gray-200 border-t-4 ${STAGE_STYLES[deal.stage]} shadow-sm p-4 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow`}
+                  >
+                    <p className="text-sm font-medium text-gray-900">{deal.title}</p>
+                    <p className="text-xs text-gray-400 mt-1">{deal.company}</p>
+                    <p className="text-sm font-semibold text-blue-600 mt-3">{formatValue(deal.value)}</p>
+                    <div className="flex items-center justify-between mt-3 text-xs text-gray-400">
+                      <span className="flex items-center gap-1">
+                        <User size={12} /> {deal.owner?.split(" ")[0]}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <CalendarDays size={12} /> {deal.closeDate}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
-              {col.items.length === 0 && (
-                <div className="border border-dashed border-gray-200 rounded-xl p-6 text-center text-xs text-gray-400">
-                  No deals here
-                </div>
-              )}
+                ))}
+                {col.items.length === 0 && (
+                  <div className="border border-dashed border-gray-200 rounded-xl p-6 text-center text-xs text-gray-400">
+                    No deals here
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
-
+          ))}
+        </div>
+      )}
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -118,8 +158,8 @@ function Deals() {
             <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-100">
               Cancel
             </button>
-            <button type="submit" form="deal-form" className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
-              Add Deal
+            <button type="submit" form="deal-form" disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-60">
+              {saving ? "Saving..." : "Add Deal"}
             </button>
           </>
         }
@@ -154,5 +194,4 @@ function Deals() {
     </div>
   );
 }
-
 export default Deals;

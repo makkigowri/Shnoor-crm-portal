@@ -6,7 +6,6 @@ function StatCard({ icon: Icon, label, value, trend, trendLabel, accent = "blue"
     violet: "bg-violet-50 text-violet-600",
     red: "bg-red-50 text-red-600",
   };
-
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col gap-3">
       <div className="flex items-start justify-between">
@@ -27,5 +26,4 @@ function StatCard({ icon: Icon, label, value, trend, trendLabel, accent = "blue"
     </div>
   );
 }
-
 export default StatCard;

@@ -1,5 +1,4 @@
 const express = require("express");
-
 const {
   getOrganizationDashboard,
   getOrganizationEmployees,
@@ -10,83 +9,55 @@ const {
   getOrganizationProfile,
   updateOrganizationProfile,
 } = require("../controllers/organizationController");
-
 const authMiddleware = require("../middleware/authMiddleware");
-
+const { requireOrgAdmin } = require("../middleware/roleMiddleware");
 const router = express.Router();
-
-
-// ============================================================
-// DASHBOARD
-// ============================================================
-
 router.get(
   "/dashboard",
   authMiddleware,
+  requireOrgAdmin,
   getOrganizationDashboard
 );
-
-
-// ============================================================
-// EMPLOYEES
-// ============================================================
-
 router.get(
   "/employees",
   authMiddleware,
+  requireOrgAdmin,
   getOrganizationEmployees
 );
-
-
-// ============================================================
-// INVITATIONS
-// ============================================================
-
 router.get(
   "/invitations",
   authMiddleware,
+  requireOrgAdmin,
   getOrganizationInvitations
 );
-
 router.post(
   "/invitations",
   authMiddleware,
+  requireOrgAdmin,
   createInvitation
 );
-
-
-// ============================================================
-// ORGANIZATION SETTINGS
-// ============================================================
-
 router.get(
   "/settings",
   authMiddleware,
+  requireOrgAdmin,
   getOrganizationSettings
 );
-
 router.put(
   "/settings",
   authMiddleware,
+  requireOrgAdmin,
   updateOrganizationSettings
 );
-
-
-// ============================================================
-// ORGANIZATION PROFILE
-// ============================================================
-
 router.get(
   "/profile",
   authMiddleware,
+  requireOrgAdmin,
   getOrganizationProfile
 );
-
 router.put(
   "/profile",
   authMiddleware,
+  requireOrgAdmin,
   updateOrganizationProfile
 );
-
-
 module.exports = router;
