@@ -32,8 +32,6 @@ function LoginPage() {
         formData.email,
         formData.password
       );
-      console.log("Authenticated user:", result.user);
-      console.log("JWT:", result);
       if (result.user.role === "ORG_ADMIN") {
         navigate("/organization");
       } else {
